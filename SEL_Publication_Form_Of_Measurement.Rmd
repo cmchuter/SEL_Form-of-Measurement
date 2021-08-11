@@ -1,0 +1,919 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+ pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+### remove all objects from workspace
+rm(list=ls())
+
+### set working directory
+setwd("C:/Users/clair/OneDrive/Desktop/Slavin Lab_R/SEL_Publication/SEL_Publication_Form_Of_Measurement")
+```
+
+
+```{r}
+########################################################################################################
+# Initial Set-up
+########################################################################################################
+# Clear Variables
+rm(list=ls(all=TRUE))
+
+# Load packages
+test<-require(googledrive)   
+if (test == FALSE) {
+  install.packages("googledrive")
+  require(googledrive)
+}
+
+test<-require(robumeta)   
+if (test == FALSE) {
+  install.packages("robumeta")
+  require(robumeta)
+}
+
+test<-require(googlesheets4)   
+if (test == FALSE) {
+  install.packages("googlesheets4")
+  require(googlesheets4)
+}
+test<-require(janitor)   #remove_empty()
+if (test == FALSE) {
+  install.packages("janitor")
+  require(janitor)
+}
+test<-require(plyr)   #rename
+if (test == FALSE) {
+  install.packages("plyr")
+  require(plyr)
+}
+test<-require(metafor)   #rma()
+if (test == FALSE) {
+  install.packages("metafor")
+  require(metafor)
+}
+test<-require(clubSandwich)   #coef_test()
+if (test == FALSE) {
+  install.packages("clubSandwich")
+  require(clubSandwich)
+}
+test<-require(ggplot2)   #ggplot()
+if (test == FALSE) {
+  install.packages("ggplot2")
+  require(ggplot2)
+}
+test<-require(tableone)   #CreateTableOne()
+if (test == FALSE) {
+  install.packages("tableone")
+  require(tableone)
+}
+test<-require(flextable)   
+if (test == FALSE) {
+  install.packages("flextable")
+  require(flextable)
+}
+test<-require(officer)   
+if (test == FALSE) {
+  install.packages("officer")
+  require(officer)
+}
+rm(test)
+
+```
+
+```{r}
+#################################
+# Load data
+#################################
+# set up to load from Google
+drive_auth(email = "cmchuter@gmail.com")
+gs4_auth(email = "cmchuter@gmail.com")
+
+id <- drive_find(pattern = "SEL tracking", type = "spreadsheet")$id[1]
+
+# load findings and studies
+dat <- read_sheet(id, sheet = "10.5.2020_Outcome Coding", col_types = "c")
+
+rm(id)
+```
+
+
+```{r}
+###########################
+#Clean data
+###########################
+#remove any empty rows and columns
+dat <- remove_empty(dat, which =c("rows", "cols"))
+
+#drop irrelevant rows
+dat<-subset(dat, dat$Drop==0)
+
+dat$primary <-0
+dat$primary[which(dat$Grade.Band=="Primary")] <-1
+
+dat$secondary<-0
+dat$secondary[which(dat$Grade.Band=="Secondary")]<-1
+
+dat$mixed<-0
+dat$mixed[which(dat$Grade.Band=="Mixed")]<-1
+
+# Make form of report a dummy (with five categories: teacher-report, parent-report, self-report, peer-report, third-party)
+dat$teacher.report <- 0
+dat$teacher.report[which(dat$`Type of Measure`=="teacher-report")] <- 1
+dat$teacher.report[which(dat$`Type of Measure`=="teacher report")] <- 1
+dat$peer.report <- 0
+dat$peer.report[which(dat$`Type of Measure`=="Peer-report")] <- 1
+dat$parent.report <- 0
+dat$parent.report[which(dat$`Type of Measure`=="parent-report")] <- 1
+dat$parent.report[which(dat$`Type of Measure`=="Parent report")] <- 1
+dat$parent.report[which(dat$`Type of Measure`=="Parent-report")] <- 1
+dat$self.report <- 0
+dat$self.report[which(dat$`Type of Measure`=="Self-Report")] <- 1
+
+dat$observation <- 0
+dat$observation[which(dat$`Type of Measure`=="observation")] <- 1
+dat$standardized.assessments<-0
+dat$standardized.assessments[which(dat$`Type of Measure`=="standardized assessment")] <- 1
+dat$administrative.records<-0
+dat$administrative.records[which(dat$`Type of Measure`=="administrative records")] <- 1
+
+### Create dummy variable for Targeted vs. Universal Intervention
+dat$Targeted = as.numeric(dat$Targeted)
+
+### Create dummy variable for Quasi-Experimental vs. Randomized Controlled Trial
+dat$qed = as.numeric(dat$`Quasi-Experimental`)
+
+### Create dummy variables for form of SEL improvement
+dat$emotional_wellbeing <- 0
+dat$emotional_wellbeing[which(dat$`Website Category`=="Emotional Well-being")] <- 1
+dat$emotional_wellbeing[which(dat$`Website Category`=="Emotional well-being")] <- 1
+dat$emotional_wellbeing[which(dat$`Website Category`=="Emotional Well-Being")] <- 1
+  
+dat$problem_behaviors <- 0
+dat$problem_behaviors[which(dat$`Website Category`=="Problem Behaviors")] <- 1
+
+dat$emo_and_problem <- 0
+dat$emo_and_problem[which(dat$emotional_wellbeing==1 | dat$problem_behaviors==1)] <- 1
+
+dat$social_relationships <- 0
+dat$social_relationships[which(dat$`Website Category`=="Social Relationships")] <- 1
+
+dat$academic <- 0
+dat$academic[which(dat$`Website Category`=="Academic")] <- 1
+
+dat$Grade.Band[which(dat$Grade.Band=="primary")]<-"Primary"
+dat$Grade.Band[which(dat$Grade.Band=="Elementary")]<-"Primary"
+dat$Grade.Band[which(dat$Grade.Band=="Elementary")]<-"Primary"
+dat$Grade.Band[which(dat$Grade.Band=="Primary+Secondary")]<-"Mixed"
+
+
+dat$form_of_assessment <- 0
+dat$form_of_assessment[which(dat$self.report==1)] <- "Self-Report"
+dat$form_of_assessment[which(dat$teacher.report==1)] <- "Teacher-Report"
+dat$form_of_assessment[which(dat$parent.report==1)] <- "Parent-Report"
+dat$form_of_assessment[which(dat$observation==1)] <- "Observation"
+dat$form_of_assessment[which(dat$peer.report==1)] <- "Peer Report"
+dat$form_of_assessment[which(dat$administrative.records==1)] <- "Administrative Records"
+dat$form_of_assessment[which(dat$standardized.assessments==1)] <- "Standardized Records"
+
+
+dat$outcome <- 0
+dat$outcome[which(dat$social_relationships==1)] <- "Social Relationships"
+dat$outcome[which(dat$emo_and_problem==1)] <- "Emotional Well-Being and Problem Behaviors"
+dat$outcome[which(dat$academic==1)] <- "Academic"
+
+dat$ES<-as.numeric(dat$ES)
+dat$form_of_assessment<-as.factor(dat$form_of_assessment)
+```
+
+
+```{r}
+### Center variables
+dat$self.report.m <- dat$self.report - mean(dat$self.report)
+dat$teacher.report.m <- dat$teacher.report - mean(dat$teacher.report)
+dat$parent.report.m <- dat$parent.report - mean(dat$parent.report)
+dat$peer.report.m <- dat$peer.report - mean(dat$peer.report)
+dat$observation.m <- dat$observation - mean(dat$observation)
+dat$standardized.assessments.m <- dat$standardized.assessments - mean(dat$standardized.assessments)
+dat$administrative.records.m <- dat$administrative.records - mean(dat$administrative.records)
+dat$qed.m <- dat$qed - mean(dat$qed)
+dat$primary.m <- dat$primary - mean(dat$primary)
+dat$secondary.m <- dat$secondary - mean(dat$secondary)
+dat$mixed.m <- dat$mixed - mean(dat$mixed)
+dat$Targeted.m <- dat$Targeted - mean(dat$Targeted)
+dat$academic.m <- dat$academic - mean(dat$academic)
+dat$social.m <- dat$social_relationships - mean(dat$social_relationships)
+dat$emo_and_problem.m <- dat$emo_and_problem - mean(dat$emo_and_problem)
+```
+
+```{r}
+##Make variables numeric 
+num <- c("ES", "Targeted.m", "qed.m", "Tx.Cluster", "Control.Cluster", "Total_N", "Tx.N", "Control.N")
+
+dat[num]<-lapply(dat[num], as.numeric)
+```
+
+
+```{r}
+################################################################
+# Calculate meta-analytic variables: Correct ES for clustering (Hedges, 2007, Eq. 19)
+################################################################
+### prep data
+dat$InterventionID <- as.numeric(as.factor(dat$Intervention))
+dat$EffectSizeID <- as.numeric(row.names(dat))
+
+dat$APA.orig <- dat$APA
+dat$Study.Number <- as.numeric(as.factor(paste(dat$InterventionID, dat$Study.Number, sep = ":")))
+
+dat$Clustered <- 0
+dat$Clustered <- ifelse(is.na(dat$Control.Cluster), 0, 1)
+
+# create dat sample/total clusters variables
+dat$Sample <- dat$Tx.N + dat$Control.N
+dat$Clusters_Total <- dat$Tx.Cluster + dat$Control.Cluster
+
+
+### create meta-analysis variables
+#calculate standard errors
+dat$se<-sqrt(((dat$Tx.N+dat$Control.N)/(dat$Tx.N*dat$Control.N))+((dat$ES*dat$ES)/(2*(dat$Tx.N+dat$Control.N))))
+
+#calculate variance
+dat$var<-dat$se*dat$se
+
+#HEDGES 2007
+# calculate cluster-corrected variance
+# correct for clustering
+dat$icc <- NA
+dat$icc[which(dat$Clustered == 1)] <- 0.1   # could look this up and do a sensitivity analysis
+dat$icc[which(dat$Clustered == 1 & dat$academic==1)] <- 0.2
+
+dat$Tx.Cluster.n <- NA
+dat$Tx.Cluster.n[which(dat$Clustered == 1)] <- round(dat$Tx.N[which(dat$Clustered == 1)]/dat$Tx.Cluster[which(dat$Clustered == 1)], 0)
+dat$Control.Cluster.n <- NA
+dat$Control.Cluster.n[which(dat$Clustered == 1)] <- round(dat$Control.N[which(dat$Clustered == 1)]/dat$Control.Cluster[which(dat$Clustered == 1)], 0)
+
+dat$ntilde <- NA
+dat$ntilde <- ((dat$Control.N * dat$Tx.Cluster * dat$Tx.Cluster.n * dat$Tx.Cluster.n)/(dat$Tx.N * dat$Sample)) +
+  ((dat$Tx.N * dat$Control.Cluster * dat$Control.Cluster.n * dat$Control.Cluster.n)/(dat$Control.N * dat$Sample))
+
+dat$n.TU <- NA
+dat$n.TU <- ((dat$Tx.N * dat$Tx.N) - (dat$Tx.Cluster * dat$Tx.Cluster.n * dat$Tx.Cluster.n))/(dat$Tx.N * (dat$Tx.Cluster - 1))
+dat$n.CU <- NA
+dat$n.CU <- ((dat$Control.N * dat$Control.N) - (dat$Control.Cluster * dat$Control.Cluster.n * dat$Control.Cluster.n))/(dat$Control.N * (dat$Control.Cluster - 1))
+
+dat$AT <- NA
+dat$AT <-((dat$Tx.N^2 * dat$Tx.Cluster * dat$Tx.Cluster.n^2) + ((dat$Tx.Cluster * dat$Tx.Cluster.n^2)^2) - (2 * dat$Tx.N * dat$Tx.Cluster.n^3 * dat$Tx.Cluster))/(dat$Tx.N^2)
+
+dat$AC <- NA
+dat$AC <-((dat$Control.N^2 * dat$Control.Cluster * dat$Control.Cluster.n^2) + ((dat$Control.Cluster * dat$Control.Cluster.n^2)^2) - (2 * dat$Control.N * dat$Control.Cluster.n^3 * dat$Control.Cluster))/(dat$Control.N^2)
+
+dat$A <- dat$AT + dat$AC
+
+dat$B <- NA
+dat$B <- dat$n.TU * (dat$Tx.Cluster - 1) + dat$n.CU * (dat$Control.Cluster -1)
+
+
+dat$var.adj <- NA
+dat$var.adj <- ((dat$Tx.N + dat$Control.N)/(dat$Tx.N * dat$Control.N)) * (1 + (dat$ntilde - 1) * dat$icc) + ((((dat$Sample - 2)*(1-dat$icc)^2) + dat$A * dat$icc^2 + 2*dat$icc*(1-dat$icc))*dat$ES^2)/(2*(dat$Sample-2)*((dat$Sample - 2)-dat$icc*(dat$Sample-2-dat$B)))
+dat$var.old <- dat$var
+dat$var[which(dat$Clustered == 1)] <- dat$var.adj[which(dat$Clustered == 1)]
+```
+
+```{r}
+########################################################################################################
+# Analyses
+#################################################################################
+# Descriptive Statistics
+#################################################################################
+# identify variables for descriptive tables (study-level and outcome-level)
+vars_study <- c("Quasi-Experimental", "Clustered", "Targeted")
+vars_outcome <- c("Grade.Band", "Self- Report" ) 
+
+# To make this work, you will need a df that is at the study-level for study-level variables (such as research design)
+# you may have already created this (see above, with study-level ESs), but if you didn't, here is an easy way:
+# 1) make df with *only* the study-level variables of interest and studyIDs in it
+study_level_full <- dat[c("APA", vars_study)]
+
+# 2) remove duplicated rows
+study_level_full <- unique(study_level_full)
+# 3) make sure it is the correct number of rows (should be same number of studies you have)
+length(study_level_full$APA)==length(unique(study_level_full$APA)) ####check for the combination code for studyid and apa, ##send code to Amanda
+# don't skip step 3 - depending on your data structure, some moderators can be study-level in one review, 
+# but outcome-level in another
+
+
+# create the table "chunks"
+table_study_df <- as.data.frame(print(CreateTableOne(vars = vars_study, data = study_level_full, 
+                                                     includeNA = TRUE,
+                                                     factorVars = c("Quasi-Experimental", "Clustered", "Targeted")), 
+                                      showAllLevels = TRUE))
+table_outcome_df <- as.data.frame(print(CreateTableOne(vars = vars_outcome, data = dat, includeNA = TRUE), 
+                                        showAllLevels = TRUE))
+
+rm(vars_study, vars_outcome)
+
+
+# Descriptives Table Formatting (What do I want this to look like?)
+table_study_df$Category <- row.names(table_study_df)
+rownames(table_study_df) <- c()
+table_study_df <- table_study_df[c("Category", "level", "Overall")]
+table_study_df$Category[which(substr(table_study_df$Category, 1, 1)=="X")] <- NA
+table_study_df$Category <- gsub(pattern = "\\..mean..SD..", replacement = "", x = table_study_df$Category)
+table_study_df$Overall <- gsub(pattern = "\\( ", replacement = "\\(", x = table_study_df$Overall)
+table_study_df$Overall <- gsub(pattern = "\\) ", replacement = "\\)", x = table_study_df$Overall)
+table_study_df$Category <- gsub(pattern = "\\.", replacement = "", x = table_study_df$Category)
+table_study_df$Category[which(table_study_df$Category=="n")] <- "Total Studies"
+table_study_df$Category[which(table_study_df$Category=="Clustered")] <- "Clustered"
+table_study_df$Category[which(table_study_df$Category=="Quasi-Experimental")] <- "Quasi-Experimental"
+
+table_study_df[2, "Category"] <- "Study Design"
+table_study_df[3, "Category"] <- ""
+table_study_df[4, "Category"] <- "Assignment"
+table_study_df[6, "Category"] <- "Focus"
+table_study_df[7, "Category"] <- ""
+
+table_study_df[2, "level"] <- "Randomized"
+table_study_df[3, "level"] <- "Quasi-Experimental"
+table_study_df[4, "level"] <- "Individual"
+table_study_df[5, "level"] <- "Clustered"
+table_study_df[6, "level"] <- "Universal"
+table_study_df[7, "level"] <- "Targeted"
+
+
+names(table_study_df)[names(table_study_df) == "Overall"] <- "Overall (%)"
+names(table_study_df)[names(table_study_df) == "level"] <- "Level"
+
+table_study_df
+
+##convert to flextable
+ft <- flextable(head(table_study_df, n=nrow(table_study_df)))
+##format using flextable
+ft <- theme_vanilla(ft)
+ft
+```
+
+
+```{r}
+gggg
+table_outcome_df$Category <- row.names(table_outcome_df)
+table_outcome_df
+rownames(table_outcome_df) <- c()
+table_outcome_df <- table_outcome_df[ , c("Category",    # Reorder data frame
+                       names(table_outcome_df)[names(table_outcome_df) != "Category"])]
+table_outcome_df
+
+table_outcome_df <- table_outcome_df[c("Category", "level", "Overall")]
+table_outcome_df$Category[which(substr(table_outcome_df$Category, 1, 1)=="X")] <- NA
+table_outcome_df$Overall <- gsub(pattern = "\\( ", replacement = "\\(", x = table_outcome_df$Overall)
+table_outcome_df$Overall <- gsub(pattern = "\\) ", replacement = "\\)", x = table_outcome_df$Overall)
+table_outcome_df$Category <- gsub(pattern = "\\.", replacement = "", x = table_outcome_df$Category)
+table_outcome_df$Category[which(table_outcome_df$Category=="n")] <- "Total Effect Sizes"
+factorVars = c("Grade.Band")
+
+
+names(table_outcome_df)[names(table_outcome_df) == "Overall"] <- "Overall (%)"
+names(table_outcome_df)[names(table_outcome_df) == "level"] <- "Level"
+
+
+##convert to flextable
+ft1 <- flextable(head(table_outcome_df, n=nrow(table_outcome_df)))
+##format using flextable
+ft1 <- theme_vanilla(ft1)
+ft1
+
+myreport <- read_docx()
+myreport <- body_add_flextable(x = myreport, ft1)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+myreport <- body_add_flextable(x = myreport, ft)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+# Write to word doc
+file = paste("TableResults.docx", sep = "")
+print(myreport, file)
+```
+
+```{r}
+#################################################################################
+# RVE: Null Model
+#################################################################################
+# estimate a covariance matrix
+V_list <- impute_covariance_matrix(vi = dat$var,  #known correlation vector
+                                   cluster = dat$Study.Number, #study ID
+                                   r = 0.80) #assumed correlation 
+
+MVnull <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+MVnull
+
+#t-tests of each covariate #
+MVnull.coef <- coef_test(MVnull,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+MVnull.coef
+
+MVnull.coef<-as.data.frame(MVnull.coef)
+
+# get the coefficient names from the rownames (that’s where they go when you do this)
+MVnull.coef$Coef <- row.names(MVnull.coef)
+
+# the columns are out of order (with Coef at the end), but you can reorder this way:
+MVnull.coef <- MVnull.coef[c("Coef", "beta", "SE", "tstat", "df", "p_Satt")]
+# there might be a way to pull the sig. out of the special class before forcing it to a dataframe…
+# but I just make my own like this:
+MVnull.coef$sig <- ""
+MVnull.coef$sig[which(MVnull.coef$p_Satt < 0.05)] <- "*"
+MVnull.coef$sig[which(MVnull.coef$p_Satt < 0.01)] <- "**"
+MVnull.coef$sig[which(MVnull.coef$p_Satt < 0.001)] <- "***"
+
+MVnull.coef = subset(MVnull.coef, select = -c(p_Satt) )
+row.names(MVnull.coef) <- c()
+
+MVnull.coef$Coef[MVnull.coef$Coef == "intrcpt"] <- "Intercept"
+
+MVnull.coef
+ft5<-flextable(MVnull.coef)
+ft5
+
+names1 <- c("Coef", "beta", "SE", "tstat", "df", "sig")
+names2 <- c("Coefficient",'Estimate','SE','T-statistic','df','Sig.')
+
+ft5 <- set_header_df(x = ft5, mapping = data.frame(keys = names1, values = names2, stringsAsFactors = FALSE),
+              key = "keys" )
+
+ft5 <- theme_vanilla(ft5)
+
+ft5 <- colformat_num(x = ft5,
+  big.mark=",", digits = 2, na_str = "N/A")
+autofit(ft5)
+ft5
+
+```
+
+```{r}
+#################################################################################
+# RVE: Metaregression: centering w/ intercept
+################################################################################# 
+##The Wald_test function tests the linear contrasts from a regression model, using a sandwich estimator for the variance-covariance matrix, and a small sample correction for the p-value. 
+V_list <- impute_covariance_matrix(vi = dat$var,  #known correlation vector
+                                   cluster = dat$Study.Number, #study ID
+                                   r = 0.80) #assumed correlation 
+
+# save list of moderators to include
+terms <- c("teacher.report.m", "parent.report.m", "peer.report.m", "observation.m", "administrative.records.m", "standardized.assessments.m", "Targeted.m", "primary.m", "mixed.m", "qed.m", "social.m", "emo_and_problem.m")  
+
+# format moderators into formula (an R-specific type)
+formula <- reformulate(termlabels = c(terms))
+
+MVfull <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+MVfull
+
+#t-tests of each covariate #
+MVfull.coef <- coef_test(MVfull,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+
+# make it a dataframe
+MVfull.coef <- as.data.frame(MVfull.coef)
+
+# get the coefficient names from the rownames (that’s where they go when you do this)
+MVfull.coef$Coef <- row.names(MVfull.coef)
+
+#Create new column for reference category
+reference <-c(1:13)
+MVfull.coef$reference<-reference
+
+# the columns are out of order (with Coef at the end), but you can reorder this way:
+MVfull.coef <- MVfull.coef[c("Coef","reference", "beta", "SE", "tstat", "df", "p_Satt")]
+# there might be a way to pull the sig. out of the special class before forcing it to a dataframe…
+# but I just make my own like this:
+MVfull.coef$sig <- ""
+MVfull.coef$sig[which(MVfull.coef$p_Satt < 0.05)] <- "*"
+MVfull.coef$sig[which(MVfull.coef$p_Satt < 0.01)] <- "**"
+MVfull.coef$sig[which(MVfull.coef$p_Satt < 0.001)] <- "***"
+
+MVfull.coef = subset(MVfull.coef, select = -c(p_Satt) )
+row.names(MVfull.coef) <- c()
+
+MVfull.coef$Coef[MVfull.coef$Coef == "intrcpt"] <- "Intercept"
+MVfull.coef$Coef[MVfull.coef$Coef == "teacher.report.m"] <- "Teacher-Report"
+MVfull.coef$Coef[MVfull.coef$Coef == "parent.report.m"] <- "Parent-Report"
+MVfull.coef$Coef[MVfull.coef$Coef == "peer.report.m"] <- "Peer-Report"
+MVfull.coef$Coef[MVfull.coef$Coef == "observation.m"] <- "Observation"
+MVfull.coef$Coef[MVfull.coef$Coef == "administrative.records.m"] <- "Administrative Records"
+MVfull.coef$Coef[MVfull.coef$Coef == "standardized.assessments.m"] <- "Standardized Assessments"
+MVfull.coef$Coef[MVfull.coef$Coef == "Targeted.m"] <- "Targeted"
+MVfull.coef$Coef[MVfull.coef$Coef == "primary.m"] <- "Primary"
+MVfull.coef$Coef[MVfull.coef$Coef == "mixed.m"] <- "Mixed"
+MVfull.coef$Coef[MVfull.coef$Coef == "qed.m"] <- "Quasi-Experimental"
+MVfull.coef$Coef[MVfull.coef$Coef == "social.m"] <- "Social Relationships"
+MVfull.coef$Coef[MVfull.coef$Coef == "emo_and_problem.m"] <- "Emotional and Behavioral Problems"
+
+
+MVfull.coef$reference[MVfull.coef$reference == "1"] <- ""
+MVfull.coef$reference[MVfull.coef$reference == "2"] <- "Self-Report"
+MVfull.coef$reference[MVfull.coef$reference == "3"] <- ""
+MVfull.coef$reference[MVfull.coef$reference == "4"] <- ""
+MVfull.coef$reference[MVfull.coef$reference == "5"] <- ""
+MVfull.coef$reference[MVfull.coef$reference == "6"] <- ""
+MVfull.coef$reference[MVfull.coef$reference == "7"] <- ""
+MVfull.coef$reference[MVfull.coef$reference == "8"] <- "Universal"
+MVfull.coef$reference[MVfull.coef$reference == "9"] <- "Secondary"
+MVfull.coef$reference[MVfull.coef$reference == "10"] <- ""
+MVfull.coef$reference[MVfull.coef$reference == "11"] <- "Randomized"
+MVfull.coef$reference[MVfull.coef$reference == "12"] <- "Academic"
+MVfull.coef$reference[MVfull.coef$reference == "13"] <- ""
+
+MVfull.coef
+
+ft3<-flextable(MVfull.coef)
+ft3
+
+names1 <- c("Coef","reference", "beta", "SE", "tstat", "df", "sig", "reference")
+names2 <- c("Coefficient","Reference Category",'Estimate','SE','T-statistic','df','Sig.', "Reference Category")
+
+ft3 <- set_header_df(x = ft3, mapping = data.frame(keys = names1, values = names2, stringsAsFactors = FALSE),
+              key = "keys" )
+
+ft3 <- theme_vanilla(ft3)
+
+ft3 <- colformat_num(x = ft3,
+  big.mark=",", digits = 2, na_str = "N/A")
+autofit(ft3)
+ft3
+```
+
+
+
+```{r}
+##Meta-regression, no intercept 
+V_list <- impute_covariance_matrix(vi = dat$var,  #known correlation vector
+                                   cluster = dat$Study.Number, #study ID
+                                   r = 0.80) #assumed correlation
+##################################################################
+terms <- c("form_of_assessment", 
+             "teacher.report.m", "peer.report.m", "parent.report.m",
+             "observation.m", "administrative.records.m",  "standardized.assessments.m",
+           "Targeted.m",  "primary.m",  "mixed.m",  "qed.m",  "social.m",  "emo_and_problem.m", "-1")
+
+# format moderators into formula (an R-specific type)
+formula <- reformulate(termlabels = c(terms))
+
+MVfull <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+
+MVfull.coef <- coef_test(MVfull,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+MVfull.coef
+##################################################################
+terms1 <- c("Grade.Band", "teacher.report.m", "peer.report.m", "parent.report.m",
+             "observation.m", "administrative.records.m",  "standardized.assessments.m",
+           "Targeted.m", "primary.m",  "mixed.m",  "qed.m",  "social.m",  "emo_and_problem.m", "-1")
+
+# format moderators into formula (an R-specific type)
+formula1 <- reformulate(termlabels = c(terms1))
+
+MVfull1 <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula1, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+
+MVfull.coef1 <- coef_test(MVfull1,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+MVfull.coef1
+##################################################################
+terms2 <- c("outcome","teacher.report.m", "peer.report.m", "parent.report.m",
+             "observation.m", "administrative.records.m",  "standardized.assessments.m",
+           "Targeted.m", "primary.m",  "mixed.m", "qed.m",  "social.m",  "emo_and_problem.m", "-1")
+
+# format moderators into formula (an R-specific type)
+formula2 <- reformulate(termlabels = c(terms2))
+
+MVfull2 <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula2, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+
+MVfull.coef2 <- coef_test(MVfull2,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+MVfull.coef2
+
+##################################################################
+terms3 <- c("as.factor(qed)", "teacher.report.m", "peer.report.m", "parent.report.m",
+             "observation.m", "administrative.records.m",  "standardized.assessments.m",
+           "Targeted.m", "primary.m",  "mixed.m", "qed.m",  "social.m",  "emo_and_problem.m", "-1")
+
+# format moderators into formula (an R-specific type)
+formula3 <- reformulate(termlabels = c(terms3))
+
+MVfull3 <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula3, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+
+MVfull.coef3 <- coef_test(MVfull3,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+MVfull.coef3
+##################################################################
+##Turn the table into a dataframe (usually start with the null model)
+df <- as.data.frame(MVfull.coef)
+df1 <- as.data.frame(MVfull.coef1)
+df2 <- as.data.frame(MVfull.coef2)
+df3 <- as.data.frame(MVfull.coef3)
+
+df1
+####before append them together, drop all the rows you don't want
+df <- df[-c(2, 4, 6), ]
+```
+
+
+```{r}
+
+##Append these dataframes together
+df <- rbind(df, df1)
+df <- rbind(df, df2)
+df <- rbind(df, df3)
+
+MVfull_no_int<-df
+MVfull_no_int
+# make it a dataframe
+MVfull_no_int <- as.data.frame(MVfull_no_int)
+#get the coefficient names from the rownames (that’s where they go when you do this)
+MVfull_no_int$Coef <- row.names(MVfull_no_int)
+
+# the columns are out of order (with Coef at the end), but you can reorder this way:
+MVfull_no_int <- MVfull_no_int[c("Coef", "beta", "SE", "tstat", "df", "p_Satt")]
+# there might be a way to pull the sig. out of the special class before forcing it to a dataframe…
+# but I just make my own like this:
+MVfull_no_int$sig <- ""
+MVfull_no_int$sig[which(MVfull_no_int$p_Satt < 0.05)] <- "*"
+MVfull_no_int$sig[which(MVfull_no_int$p_Satt < 0.01)] <- "**"
+MVfull_no_int$sig[which(MVfull_no_int$p_Satt < 0.001)] <- "***"
+
+MVfull_no_int = subset(MVfull_no_int, select = -c(p_Satt) )
+row.names(MVfull_no_int) <- c()
+
+MVfull_no_int$Coef[MVfull_no_int$Coef == "form_of_assessmentadministrative records"] <- "Administrative Records"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "form_of_assessmentobservation"] <- "Observation"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "form_of_assessmentParent-report"] <- "Parent-Report"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "form_of_assessmentPeer-report"] <- "Peer-Report"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "form_of_assessmentSelf-Report"] <- "Self-Report"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "form_of_assessmentstandardized assessment"] <- "Standardized Assessments" 
+MVfull_no_int$Coef[MVfull_no_int$Coef == "form_of_assessmentteacher report"] <- "Teacher-Report"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "Targeted.m"] <- "Targeted"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "primary.m"] <- "Primary"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "mixed.m"] <- "Mixed"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "qed.m"] <- "Quasi-Experimental Design"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "social.m"] <- "Social Relationships"
+MVfull_no_int$Coef[MVfull_no_int$Coef == "emo_and_problem.m"] <- "Emotional and Behavioral Prob."
+
+MVfull_no_int
+ft3<-flextable(MVfull_no_int)
+ft3
+
+names1 <- c("Coef", "beta", "SE", "tstat", "df", "sig")
+names2 <- c("Coefficient",'Estimate','SE','T-statistic','df','Sig.')
+
+ft3 <- set_header_df(x = ft3, mapping = data.frame(keys = names1, values = names2, stringsAsFactors = FALSE),
+              key = "keys" )
+
+ft3 <- theme_vanilla(ft3)
+
+ft3 <- colformat_num(x = ft3,
+  big.mark=",", digits = 2, na_str = "N/A")
+autofit(ft3)
+ft3
+```
+
+
+```{r}
+#########Marginal Means Table
+
+##Form of Assessment Model
+terms8 <- c("form_of_assessment",  "teacher.report.m", "peer.report.m",  "parent.report.m", "observation.m",  "administrative.records.m", "standardized.assessments.m", "Targeted.m", "primary.m", "mixed.m","qed.m", "social.m", "emo_and_problem.m", "-1")
+
+formula8 <- reformulate(termlabels = c(terms8))
+
+MVfullnoint <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula8, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+
+MVfull.coef_no_int <- coef_test(MVfullnoint ,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+MVfull.coef_no_int
+
+
+#Targeted Model
+terms9 <- c("as.factor(Targeted)",  "teacher.report.m", "peer.report.m",  "parent.report.m", "observation.m",  "administrative.records.m", "standardized.assessments.m", "Targeted.m", "primary.m", "mixed.m","qed.m", "social.m", "emo_and_problem.m", "-1")
+
+formula9 <- reformulate(termlabels = c(terms9))
+
+MVfullnoint1 <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula9, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+
+MVfull.coef_no_int1 <- coef_test(MVfullnoint1 ,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+MVfull.coef_no_int1
+
+
+#Gradeband Model 
+terms10<- c("Grade.Band",  "teacher.report.m", "peer.report.m",  "parent.report.m", "observation.m",  "administrative.records.m", "standardized.assessments.m", "Targeted.m", "primary.m", "mixed.m","qed.m", "social.m", "emo_and_problem.m", "-1")
+
+formula10 <- reformulate(termlabels = c(terms10))
+
+MVfullnoint2 <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula10, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+
+MVfull.coef_no_int2 <- coef_test(MVfullnoint2 ,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+MVfull.coef_no_int2
+
+
+#QED Model
+terms11<- c("as.factor(qed)",  "teacher.report.m", "peer.report.m",  "parent.report.m", "observation.m",  "administrative.records.m", "standardized.assessments.m", "Targeted.m", "primary.m", "mixed.m","qed.m", "social.m", "emo_and_problem.m", "-1")
+
+formula11 <- reformulate(termlabels = c(terms11))
+
+MVfullnoint3 <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula11, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+
+MVfull.coef_no_int3 <- coef_test(MVfullnoint3 ,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+MVfull.coef_no_int3
+
+#Outcome Model
+terms12<- c("outcome",  "teacher.report.m", "peer.report.m",  "parent.report.m", "observation.m",  "administrative.records.m", "standardized.assessments.m", "Targeted.m", "primary.m", "mixed.m","qed.m", "social.m", "emo_and_problem.m", "-1")
+
+formula12 <- reformulate(termlabels = c(terms12))
+
+MVfullnoint4 <- rma.mv(yi=ES, #effect size
+                 V = V_list, #variance (tHIS IS WHAt CHANGES FROM HEmodel)
+                 mods = formula12, #ADD COVS HERE
+                 random = ~1 | Study.Number/EffectSizeID, #nesting structure
+                 test= "t", #use t-tests
+                 data=dat, #define data
+                 method="REML") #estimate variances using REML
+
+MVfull.coef_no_int4 <- coef_test(MVfullnoint4 ,#estimation model above
+                         cluster=dat$Study.Number, #define cluster IDs
+                         vcov = "CR2") #estimation method (CR2 is best)
+
+MVfull.coef_no_int4
+
+
+##################################################################
+##Turn the table into a dataframe (usually start with the null model)
+df <- as.data.frame(MVfull.coef_no_int1)
+df1 <- as.data.frame(MVfull.coef_no_int2)
+df2 <- as.data.frame(MVfull.coef_no_int3)
+df3 <- as.data.frame(MVfull.coef_no_int4)
+
+
+####before append them together, drop all the rows you don't want
+
+##Append these dataframes together
+df <- rbind(df, df1)
+df <- rbind(df, df2)
+df <- rbind(df, df3)
+
+MVfull.coef_no_int<-df
+
+#get the coefficient names from the rownames (that’s where they go when you do this)
+MVfull.coef_no_int$Coef <- row.names(MVfull.coef_no_int)
+
+# the columns are out of order (with Coef at the end), but you can reorder this way:
+MVfull.coef_no_int <- MVfull.coef_no_int[c("Coef", "beta", "SE", "tstat", "df", "p_Satt")]
+
+MVfull.coef_no_int$sig <- ""
+MVfull.coef_no_int$sig[which(MVfull.coef_no_int$p_Satt < 0.05)] <- "*"
+MVfull.coef_no_int$sig[which(MVfull.coef_no_int$p_Satt < 0.01)] <- "**"
+MVfull.coef_no_int$sig[which(MVfull.coef_no_int$p_Satt < 0.001)] <- "***"
+
+MVfull.coef_no_int = subset(MVfull.coef_no_int, select = -c(p_Satt) )
+MVfull.coef_no_int
+
+ft3<-flextable(MVfull.coef_no_int)
+ft3
+
+names1 <- c("Coef", "beta", "SE", "tstat", "df", "sig")
+names2 <- c("Coefficient",'Estimate','SE','T-statistic','df','Sig.')
+
+ft3 <- set_header_df(x = ft3, mapping = data.frame(keys = names1, values = names2, stringsAsFactors = FALSE),
+              key = "keys" )
+
+ft3 <- theme_vanilla(ft3)
+
+ft3 <- colformat_num(x = ft3,
+  big.mark=",", digits = 2, na_str = "N/A")
+autofit(ft3)
+ft3
+```
+
+```{r}
+# alphabetize by program
+dat <- dat[order(dat$InterventionID, dat$Study.Number),]
+
+### descriptive statistics
+describeBy(dat$InterventionID,dat$self.report.m)
+describeBy(dat$InterventionID,dat$teacher.report.m)
+describeBy(dat$InterventionID,dat$peer.report.m)
+describeBy(dat$InterventionID,dat$parent.report.m)
+describeBy(dat$InterventionID,dat$observation.m)
+describeBy(dat$InterventionID,dat$administrative.records.m)
+describeBy(dat$InterventionID,dat$standardized.assessments.m)
+
+describeBy(dat$InterventionID,dat$Targeted.m)
+
+describeBy(dat$InterventionID,dat$primary.m)
+describeBy(dat$InterventionID,dat$secondary.m)
+describeBy(dat$InterventionID,dat$mixed.m)
+
+describeBy(dat$InterventionID,dat$social.m)
+describeBy(dat$InterventionID,dat$emo_and_problem.m)
+describeBy(dat$InterventionID,dat$academic.m)
+
+describeBy(dat$InterventionID,dat$qed.m)
+
+# total studies
+length(unique(dat$ES))
+# number randomized
+length(unique(dat$APA[which(dat$Randomized==1)]))
+# number qed
+length(unique(dat$APA[which(dat$Randomized==0)]))
+```
+
+
+```{r}
+########################################################################################################
+# Save Output
+########################################################################################################
+file = paste("Output/SEL_Output.docx", sep = "")
+print(myreport, file)
+
+dat <- dat[with(dat, order(APA)), ]  
+```
+
