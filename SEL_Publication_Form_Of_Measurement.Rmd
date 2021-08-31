@@ -81,6 +81,12 @@ if (test == FALSE) {
   install.packages("officer")
   require(officer)
 }
+
+test<-require(psych)   
+if (test == FALSE) {
+  install.packages("psych")
+  require(psych)
+}
 rm(test)
 
 ```
@@ -169,7 +175,6 @@ dat$Grade.Band[which(dat$Grade.Band=="primary")]<-"Primary"
 dat$Grade.Band[which(dat$Grade.Band=="Elementary")]<-"Primary"
 dat$Grade.Band[which(dat$Grade.Band=="Elementary")]<-"Primary"
 dat$Grade.Band[which(dat$Grade.Band=="Primary+Secondary")]<-"Mixed"
-
 
 dat$form_of_assessment <- 0
 dat$form_of_assessment[which(dat$self.report==1)] <- "Self-Report"
@@ -276,15 +281,15 @@ dat$A <- dat$AT + dat$AC
 dat$B <- NA
 dat$B <- dat$n.TU * (dat$Tx.Cluster - 1) + dat$n.CU * (dat$Control.Cluster -1)
 
-
-dat$var.adj <- NA
 dat$var.adj <- ((dat$Tx.N + dat$Control.N)/(dat$Tx.N * dat$Control.N)) * (1 + (dat$ntilde - 1) * dat$icc) + ((((dat$Sample - 2)*(1-dat$icc)^2) + dat$A * dat$icc^2 + 2*dat$icc*(1-dat$icc))*dat$ES^2)/(2*(dat$Sample-2)*((dat$Sample - 2)-dat$icc*(dat$Sample-2-dat$B)))
 dat$var.old <- dat$var
 dat$var[which(dat$Clustered == 1)] <- dat$var.adj[which(dat$Clustered == 1)]
 ```
 
 ```{r}
-########################################################################################################
+#######################################################
+
+dat$var.adj <- NA#################################################
 # Analyses
 #################################################################################
 # Descriptive Statistics
@@ -358,7 +363,6 @@ ft
 
 
 ```{r}
-gggg
 table_outcome_df$Category <- row.names(table_outcome_df)
 table_outcome_df
 rownames(table_outcome_df) <- c()
@@ -378,7 +382,6 @@ factorVars = c("Grade.Band")
 names(table_outcome_df)[names(table_outcome_df) == "Overall"] <- "Overall (%)"
 names(table_outcome_df)[names(table_outcome_df) == "level"] <- "Level"
 
-
 ##convert to flextable
 ft1 <- flextable(head(table_outcome_df, n=nrow(table_outcome_df)))
 ##format using flextable
@@ -387,9 +390,6 @@ ft1
 
 myreport <- read_docx()
 myreport <- body_add_flextable(x = myreport, ft1)
-myreport <- body_add_par(x = myreport, value = "", style = "Normal")
-
-myreport <- body_add_flextable(x = myreport, ft)
 myreport <- body_add_par(x = myreport, value = "", style = "Normal")
 
 # Write to word doc
@@ -451,11 +451,21 @@ ft5 <- set_header_df(x = ft5, mapping = data.frame(keys = names1, values = names
 
 ft5 <- theme_vanilla(ft5)
 
-ft5 <- colformat_num(x = ft5,
+ft1 <- colformat_num(x = ft5,
   big.mark=",", digits = 2, na_str = "N/A")
 autofit(ft5)
-ft5
+ft1
 
+myreport <- read_docx()
+myreport <- body_add_flextable(x = myreport, ft1)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+myreport <- body_add_flextable(x = myreport, ft1)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+# Write to word doc
+file = paste("TableResults2.docx", sep = "")
+print(myreport, file)
 ```
 
 ```{r}
@@ -552,10 +562,21 @@ ft3 <- set_header_df(x = ft3, mapping = data.frame(keys = names1, values = names
 
 ft3 <- theme_vanilla(ft3)
 
-ft3 <- colformat_num(x = ft3,
+ft1 <- colformat_num(x = ft3,
   big.mark=",", digits = 2, na_str = "N/A")
 autofit(ft3)
-ft3
+ft1
+
+myreport <- read_docx()
+myreport <- body_add_flextable(x = myreport, ft1)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+myreport <- body_add_flextable(x = myreport, ft1)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+# Write to word doc
+file = paste("TableResults3.docx", sep = "")
+print(myreport, file)
 ```
 
 
@@ -867,43 +888,126 @@ ft3 <- set_header_df(x = ft3, mapping = data.frame(keys = names1, values = names
 
 ft3 <- theme_vanilla(ft3)
 
-ft3 <- colformat_num(x = ft3,
+ft1 <- colformat_num(x = ft3,
   big.mark=",", digits = 2, na_str = "N/A")
 autofit(ft3)
-ft3
+
+myreport <- read_docx()
+myreport <- body_add_flextable(x = myreport, ft1)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+myreport <- body_add_flextable(x = myreport, ft1)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+# Write to word doc
+file = paste("TableResults4.docx", sep = "")
+print(myreport, file)
+
 ```
 
 ```{r}
 # alphabetize by program
 dat <- dat[order(dat$InterventionID, dat$Study.Number),]
 
+dat$qed[which(dat$qed==1)]<- "Quasi-Experimental"
+dat$qed[which(dat$qed==0)]<- "Randomized Controlled"
+
+##choose the columns I want: design, sample size, gradeband, effect size
+library(dplyr)
+
+datt<- dat %>% select(Intervention, qed, Grade.Band, Total_N, ES)
+
+##get the mean ES for each intervention
+datt %>%
+ group_by(Intervention, qed, Grade.Band) %>%
+  summarise_at(vars(), funs(mean(ES, na.rm=TRUE)))
+
+datt
+
+mean(datt$ES)
+as.integer(datt$Total_N)
+
+datt<-aggregate(datt[, 4:5], list(datt$qed, datt$Grade.Band, datt$Intervention ), mean)
+
+datt<-as.data.frame(datt)
+
+datt <- datt[c("Group.3", "Group.2", "Group.1", "Total_N", "ES")]
+datt
+
+ft1<-flextable(datt)
+ft1
+
+names1 <- c("Group.1", "Group.2", "Group.3", "Total_N", "ES")
+names2 <- c("Intervention",'Study Design','Grade Band','Sample Size','Effect Size')
+
+ft1 <- set_header_df(x = ft1, mapping = data.frame(keys = names1, values = names2, stringsAsFactors = FALSE),
+              key = "keys" )
+
+ft1 <- theme_vanilla(ft1)
+
+ft1 <- colformat_num(x = ft1,
+  big.mark=",", digits = 2, na_str = "N/A")
+autofit(ft1)
+
+myreport <- read_docx()
+myreport <- body_add_flextable(x = myreport, ft1)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+
+# Write to word doc
+file = paste("TableResults6.docx", sep = "")
+print(myreport, file)
+```
+
+
+```{r}
 ### descriptive statistics
-describeBy(dat$InterventionID,dat$self.report.m)
-describeBy(dat$InterventionID,dat$teacher.report.m)
-describeBy(dat$InterventionID,dat$peer.report.m)
-describeBy(dat$InterventionID,dat$parent.report.m)
-describeBy(dat$InterventionID,dat$observation.m)
-describeBy(dat$InterventionID,dat$administrative.records.m)
-describeBy(dat$InterventionID,dat$standardized.assessments.m)
+df<-describeBy(dat$InterventionID,dat$self.report.m)
+df1<-describeBy(dat$InterventionID,dat$teacher.report.m)
+df2<-describeBy(dat$InterventionID,dat$peer.report.m)
+df3<-describeBy(dat$InterventionID,dat$parent.report.m)
+df4<-describeBy(dat$InterventionID,dat$observation.m)
+df5<-describeBy(dat$InterventionID,dat$administrative.records.m)
+df6<-describeBy(dat$InterventionID,dat$standardized.assessments.m)
 
-describeBy(dat$InterventionID,dat$Targeted.m)
+df7<-describeBy(dat$InterventionID,dat$Targeted.m)
 
-describeBy(dat$InterventionID,dat$primary.m)
-describeBy(dat$InterventionID,dat$secondary.m)
-describeBy(dat$InterventionID,dat$mixed.m)
+df8<-describeBy(dat$InterventionID,dat$primary.m)
+df9<-describeBy(dat$InterventionID,dat$secondary.m)
+df10<-describeBy(dat$InterventionID,dat$mixed.m)
 
-describeBy(dat$InterventionID,dat$social.m)
-describeBy(dat$InterventionID,dat$emo_and_problem.m)
-describeBy(dat$InterventionID,dat$academic.m)
+df11<-describeBy(dat$InterventionID,dat$social.m)
+df12<-describeBy(dat$InterventionID,dat$emo_and_problem.m)
+df13<-describeBy(dat$InterventionID,dat$academic.m)
 
-describeBy(dat$InterventionID,dat$qed.m)
+df14<-describeBy(dat$InterventionID,dat$qed.m)
 
+```
+
+
+```{r}
 # total studies
-length(unique(dat$ES))
+length(unique(dat$InterventionID))
 # number randomized
-length(unique(dat$APA[which(dat$Randomized==1)]))
+df1<-length(unique(dat$APA[which(dat$Randomized==1)]))
 # number qed
-length(unique(dat$APA[which(dat$Randomized==0)]))
+df2<-ft<-length(unique(dat$APA[which(dat$Randomized==0)]))
+
+df <- as.data.frame(df)
+df1 <- as.data.frame(df1)
+df2 <- as.data.frame(df2)
+
+ft1<-flextable(df)
+
+myreport <- read_docx()
+myreport <- body_add_flextable(x = myreport, ft1)
+myreport <- body_add_par(x = myreport, value = "", style = "Normal")
+
+
+# Write to word doc
+file = paste("TableResults5.docx", sep = "")
+print(myreport, file)
+
 ```
 
 
